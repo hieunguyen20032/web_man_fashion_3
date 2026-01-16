@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Created by PhpStorm.
  * User: Minh Hieu
@@ -9,36 +10,53 @@
 
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Quần áo nam đẹp, quần áo hàng hiệu, cao cấp kiểu 2023</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta charset="utf-8">
     <link rel="stylesheet" type="text/css" href="bootstrap/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="css/style-main.css">
+    <link rel="stylesheet" type="text/css" href="css/ai-recommendation.css">
     <style type="text/css">
-      #wrapper-giaohang{text-align: center;font-family: "Myriad Pro"; font-size:24px;margin-top: 20px;font-weight: bold;color: #444;margin-bottom: 25px}
-
-      
+        #wrapper-giaohang {
+            text-align: center;
+            font-family: "Myriad Pro";
+            font-size: 24px;
+            margin-top: 20px;
+            font-weight: bold;
+            color: #444;
+            margin-bottom: 25px
+        }
     </style>
 
 
 </head>
+
 <body style="margin-top: -20px;overflow-x: hidden;">
-<?php
-session_start();
-include('inc/myconnect.php');
-include('inc/function.php');
-include('include/header.php');
-if (isset($_SESSION['cart'])) {
-    $order_day =date("Y-m-d  H:i:s");	
-    foreach ($_SESSION['cart'] as $value) {
-        $id_product = $value['id_san_pham'];
-        foreach ($value['quantity'] as $key_sl => $value_sl) {
-            $size_product = $key_sl;
-            $quantity_product = $value_sl;
-            $code_order = ramdom_code();
-            if(isset($_SESSION['id'])){
-                $query = "INSERT INTO tb_don_hang (
+    <?php
+    session_start();
+    include('inc/myconnect.php');
+    include('inc/function.php');
+    include('inc/ai_recommendation.php');
+    include('include/ai_recommendation_component.php');
+    include('include/header.php');
+
+    // Lưu lại danh sách sản phẩm đã mua để gợi ý
+    $purchased_product_ids = array();
+
+    if (isset($_SESSION['cart'])) {
+        $order_day = date("Y-m-d  H:i:s");
+        foreach ($_SESSION['cart'] as $value) {
+            $id_product = $value['id_san_pham'];
+            $purchased_product_ids[] = $id_product; // Lưu ID sản phẩm đã mua
+
+            foreach ($value['quantity'] as $key_sl => $value_sl) {
+                $size_product = $key_sl;
+                $quantity_product = $value_sl;
+                $code_order = ramdom_code();
+                if (isset($_SESSION['id'])) {
+                    $query = "INSERT INTO tb_don_hang (
                             ma_don_hang,
                             id_nguoi_dung,
                             trang_thai_don_hang,
@@ -67,10 +85,9 @@ if (isset($_SESSION['cart'])) {
                             '{$_SESSION['quan']}',
                             '{$_SESSION['payment_type']}'
                         )";
-                $result = mysqli_query($dbc, $query);
-            }
-            else{
-                $query = "INSERT INTO tb_don_hang (
+                    $result = mysqli_query($dbc, $query);
+                } else {
+                    $query = "INSERT INTO tb_don_hang (
                     ma_don_hang,
                     trang_thai_don_hang,
                     id_san_pham,
@@ -97,49 +114,61 @@ if (isset($_SESSION['cart'])) {
                     '{$_SESSION['quan']}',
                     '{$_SESSION['payment_type']}'
                 )";
-                $result = mysqli_query($dbc, $query);
+                    $result = mysqli_query($dbc, $query);
+                }
             }
         }
+
+        // Unset only the session variables you want to clear
+        unset($_SESSION['cart']);
+        unset($_SESSION['name']);
+        unset($_SESSION['sdt']);
+        unset($_SESSION['address_customer']);
+        unset($_SESSION['email']);
+        unset($_SESSION['quan']);
+        unset($_SESSION['payment_type']);
+    } else {
+        echo "No order details found in the session.";
     }
-
-    // Unset only the session variables you want to clear
-    unset($_SESSION['cart']);
-    unset($_SESSION['name']);
-    unset($_SESSION['sdt']);
-    unset($_SESSION['address_customer']);
-    unset($_SESSION['email']);
-    unset($_SESSION['quan']);
-    unset($_SESSION['payment_type']);
-
-} else {
-    echo "No order details found in the session.";
-}
-?>
+    ?>
 
 
-<div class="container">
-	<div class="row">
-		<div class="col-xs-12">
-			<div id="wrapper-giaohang">
-				<div class="row-1"><i class="glyphicon glyphicon-ok" style="color: #48A4FF;font-size: 24px;margin-right: 5px"></i>Chúc mừng bạn đã gửi đơn hàng thành công. 
-				</div>
-				<div class="row-2">Cảm ơn bạn đã sử dụng dịch vụ của thương hiệu thời trang nam 3T</div>
-				<a href="index.php" class="btn btn-primary" style="font-weight: bold;margin-top: 15px ">Tiếp tục tham gia mua hàng</a>
-			</div>
-		</div>	
-	</div>
-</div>
+    <div class="container">
+        <div class="row">
+            <div class="col-xs-12">
+                <div id="wrapper-giaohang">
+                    <div class="row-1"><i class="glyphicon glyphicon-ok" style="color: #48A4FF;font-size: 24px;margin-right: 5px"></i>Chúc mừng bạn đã gửi đơn hàng thành công.
+                    </div>
+                    <div class="row-2">Cảm ơn bạn đã sử dụng dịch vụ của thương hiệu thời trang nam 3T</div>
+                    <a href="index.php" class="btn btn-primary" style="font-weight: bold;margin-top: 15px ">Tiếp tục tham gia mua hàng</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Recommendation Section - Gợi ý sau khi mua hàng -->
+    <?php
+    $user_id = isset($_SESSION['id']) ? $_SESSION['id'] : null;
+
+    // Nếu có sản phẩm đã mua, sử dụng chức năng gợi ý sau mua hàng
+    if (!empty($purchased_product_ids)) {
+        render_post_purchase_recommendations($purchased_product_ids, 'TIẾP TỤC KHÁM PHÁ', 8);
+    } else {
+        // Nếu không có thông tin sản phẩm đã mua, hiển thị gợi ý thông thường
+        render_ai_recommendations($user_id, null, 'BẠN CÓ THỂ THÍCH', 8, 'ai-recommendations-success');
+    }
+    ?>
 
 
-<?php
-include('include/footer.php');
-?>
+    <?php
+    include('include/footer.php');
+    ?>
 </body>
 <script src="js/jquery-3.2.1.min.js"></script>
 <script type="text/javascript" src="js/jquery-main.js"></script>
+<script type="text/javascript" src="js/ai-recommendation.js"></script>
 <script type="text/javascript">
 
 </script>
+
 </html>
-
-
